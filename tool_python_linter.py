@@ -30,18 +30,33 @@ def run_linter(file_path: str) -> list:
     except Exception as e:
         return [{"error": str(e)}]
 
+def analyze_file(file_path: str) -> dict:
+    lint_results = run_linter(file_path)
+    return {"file": file_path, "linter_issues": lint_results}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Run python linter on a file.")
-    parser.add_argument("file", help="Path to the python file to analyze")
+    import pathlib
+    parser = argparse.ArgumentParser(description="Run python linter on a file or folder.")
+    parser.add_argument("path", help="Path to a Python file or folder to analyze")
     args = parser.parse_args()
 
-    lint_results = run_linter(args.file)
-    
-    result = {
-        "file": args.file,
-        "linter_issues": lint_results
-    }
-    print(tson.dumps(result))
+    target = pathlib.Path(args.path)
+
+    if target.is_dir():
+        py_files = sorted(target.rglob("*.py"))
+        if not py_files:
+            print(tson.dumps({"error": f"No Python files found in {args.path}"}))
+            sys.exit(1)
+        results = [analyze_file(str(f)) for f in py_files]
+        print(tson.dumps({"path": args.path, "results": results}))
+    elif target.is_file():
+        result = analyze_file(str(target))
+        print(tson.dumps(result))
+    else:
+        print(tson.dumps({"error": f"Path not found: {args.path}"}))
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

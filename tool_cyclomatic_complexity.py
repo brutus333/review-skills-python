@@ -40,26 +40,39 @@ def get_function_metrics(code: str) -> list:
                     })
     return metrics
 
-def main():
-    parser = argparse.ArgumentParser(description="Calculate cyclomatic complexity of a Python file.")
-    parser.add_argument("file", help="Path to the python file to analyze")
-    args = parser.parse_args()
-
+def analyze_file(file_path: str) -> dict:
     try:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             code = f.read()
     except Exception as e:
-        print(tson.dumps({"error": str(e)}))
-        sys.exit(1)
+        return {"file": file_path, "error": str(e)}
 
     metrics = get_function_metrics(code)
-    
-    result = {
-        "file": args.file,
-        "metrics": metrics
-    }
-    
-    print(tson.dumps(result))
+    return {"file": file_path, "metrics": metrics}
+
+
+def main():
+    import pathlib
+    parser = argparse.ArgumentParser(description="Calculate cyclomatic complexity of a Python file or folder.")
+    parser.add_argument("path", help="Path to a Python file or folder to analyze")
+    args = parser.parse_args()
+
+    target = pathlib.Path(args.path)
+
+    if target.is_dir():
+        py_files = sorted(target.rglob("*.py"))
+        if not py_files:
+            print(tson.dumps({"error": f"No Python files found in {args.path}"}))
+            sys.exit(1)
+        results = [analyze_file(str(f)) for f in py_files]
+        print(tson.dumps({"path": args.path, "results": results}))
+    elif target.is_file():
+        result = analyze_file(str(target))
+        print(tson.dumps(result))
+    else:
+        print(tson.dumps({"error": f"Path not found: {args.path}"}))
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

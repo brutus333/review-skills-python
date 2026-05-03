@@ -40,32 +40,45 @@ def detect_deep_references(tree: ast.AST, min_depth=3) -> list:
             
     return list(grouped.values())
 
-def main():
-    parser = argparse.ArgumentParser(description="Find deep object or method references in a Python file.")
-    parser.add_argument("file", help="Path to the python file to analyze")
-    parser.add_argument("--threshold", type=int, default=3, help="Minimum depth of reference chain")
-    args = parser.parse_args()
-
+def analyze_file(file_path: str, threshold: int) -> dict:
     try:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             code = f.read()
     except Exception as e:
-        print(tson.dumps({"error": str(e)}))
-        sys.exit(1)
+        return {"file": file_path, "error": str(e)}
 
     try:
         tree = ast.parse(code)
     except SyntaxError as e:
-        print(tson.dumps({"error": "SyntaxError", "msg": str(e)}))
+        return {"file": file_path, "error": "SyntaxError", "msg": str(e)}
+
+    refs = detect_deep_references(tree, min_depth=threshold)
+    return {"file": file_path, "deep_references": refs}
+
+
+def main():
+    import pathlib
+    parser = argparse.ArgumentParser(description="Find deep object or method references in a Python file or folder.")
+    parser.add_argument("path", help="Path to a Python file or folder to analyze")
+    parser.add_argument("--threshold", type=int, default=3, help="Minimum depth of reference chain")
+    args = parser.parse_args()
+
+    target = pathlib.Path(args.path)
+
+    if target.is_dir():
+        py_files = sorted(target.rglob("*.py"))
+        if not py_files:
+            print(tson.dumps({"error": f"No Python files found in {args.path}"}))
+            sys.exit(1)
+        results = [analyze_file(str(f), args.threshold) for f in py_files]
+        print(tson.dumps({"path": args.path, "results": results}))
+    elif target.is_file():
+        result = analyze_file(str(target), args.threshold)
+        print(tson.dumps(result))
+    else:
+        print(tson.dumps({"error": f"Path not found: {args.path}"}))
         sys.exit(1)
 
-    refs = detect_deep_references(tree, min_depth=args.threshold)
-    
-    result = {
-        "file": args.file,
-        "deep_references": refs
-    }
-    print(tson.dumps(result))
 
 if __name__ == "__main__":
     main()

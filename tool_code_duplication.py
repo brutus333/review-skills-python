@@ -59,28 +59,42 @@ def get_blocks(code: str) -> list:
                 pass
     return blocks
 
+def analyze_file(file_path: str, threshold: float) -> dict:
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            code = f.read()
+    except Exception as e:
+        return {"file": file_path, "error": str(e)}
+
+    blocks = get_blocks(code)
+    analyzer = CodeSimilarityAnalyzer(threshold=threshold)
+    duplicates = analyzer.find_near_duplicates(blocks)
+    return {"file": file_path, "duplicates": duplicates}
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Find code duplication in a Python file.")
-    parser.add_argument("file", help="Path to the python file to analyze")
+    import pathlib
+    parser = argparse.ArgumentParser(description="Find code duplication in a Python file or folder.")
+    parser.add_argument("path", help="Path to a Python file or folder to analyze")
     parser.add_argument("--threshold", type=float, default=80.0, help="Similarity threshold")
     args = parser.parse_args()
 
-    try:
-        with open(args.file, "r", encoding="utf-8") as f:
-            code = f.read()
-    except Exception as e:
-        print(tson.dumps({"error": str(e)}))
+    target = pathlib.Path(args.path)
+
+    if target.is_dir():
+        py_files = sorted(target.rglob("*.py"))
+        if not py_files:
+            print(tson.dumps({"error": f"No Python files found in {args.path}"}))
+            sys.exit(1)
+        results = [analyze_file(str(f), args.threshold) for f in py_files]
+        print(tson.dumps({"path": args.path, "results": results}))
+    elif target.is_file():
+        result = analyze_file(str(target), args.threshold)
+        print(tson.dumps(result))
+    else:
+        print(tson.dumps({"error": f"Path not found: {args.path}"}))
         sys.exit(1)
 
-    blocks = get_blocks(code)
-    analyzer = CodeSimilarityAnalyzer(threshold=args.threshold)
-    duplicates = analyzer.find_near_duplicates(blocks)
-    
-    result = {
-        "file": args.file,
-        "duplicates": duplicates
-    }
-    print(tson.dumps(result))
 
 if __name__ == "__main__":
     main()
